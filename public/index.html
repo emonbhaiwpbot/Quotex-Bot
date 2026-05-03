@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>EMon-BHai PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<style>
+body { margin:0; display:flex; background:#020617; color:white; font-family:sans-serif; }
+.sidebar { width:200px; background:#0f172a; overflow:auto; }
+.market { padding:10px; border-bottom:1px solid #1e293b; cursor:pointer; }
+.market:hover { background:#1e293b; }
+
+.main { flex:1; padding:20px; text-align:center; }
+.signal { font-size:40px; margin:20px; }
+
+.box { background:#1e293b; padding:20px; border-radius:15px; max-width:400px; margin:auto; }
+</style>
+</head>
+
+<body>
+
+<div class="sidebar" id="markets"></div>
+
+<div class="main">
+    <h2>🔥 EMon-BHai PRO 🔥</h2>
+
+    <div class="box">
+        <h3 id="pair">Select Market</h3>
+        <div id="signal" class="signal">--</div>
+        <p>Power: <span id="power">--</span></p>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
