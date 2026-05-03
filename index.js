@@ -1,68 +1,97 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const axios = require('axios');
+const path = require('path');
 
-// সরাসরি টোকেন সেট করার জায়গা
+// --- সেটিংস ---
 const token = '8476142789:AAFvC918BB-qDzl1qRe6MkrNKr0VT-AkmkY';
-
 const bot = new TelegramBot(token, { polling: true });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// মেসেজ অটো ডিলিট করার ফাংশন
-function autoDelete(chatId, messageId, delayInSeconds) {
-    setTimeout(() => {
-        bot.deleteMessage(chatId, messageId).catch((err) => {
-            console.log("Message already deleted or not found.");
-        });
-    }, delayInSeconds * 1000);
-}
+let lastSignal = {
+    pair: "N/A",
+    signal: "WAITING",
+    power: "0%",
+    time: "--:--:--"
+};
 
-async function getSignal(pair) {
+// সিগন্যাল জেনারেটর ফাংশন
+async function generateSignal(pair) {
     try {
         const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${pair}=X?interval=1m&range=15m`);
-        const result = response.data.chart.result[0];
-        const prices = result.indicators.quote[0].close;
+        const prices = response.data.chart.result[0].indicators.quote[0].close;
         const lastPrice = prices[prices.length - 1].toFixed(4);
-        
         const firstPrice = prices[0];
-        let signal = lastPrice > firstPrice ? "🚀 CALL (UP)" : "📉 PUT (DOWN)";
-        let power = "98% Sure Shot 🔥"; 
-        const time = new Date().toLocaleTimeString();
+        
+        const signalType = lastPrice > firstPrice ? "🚀 CALL (UP)" : "📉 PUT (DOWN)";
+        const currentTime = new Date().toLocaleTimeString();
 
-        return `⚡ **EMon-BHai Modified Bot v2** ⚡\n` +
-               `━━━━━━━━━━━━━━━━━━━━\n` +
-               `📊 Asset: ${pair}\n` +
-               `👉 Signal: ${signal}\n` +
-               `⏰ Time: ${time}\n` +
-               `⏳ Expiry: 1-5 Min\n` +
-               `💪 Power: ${power}\n` +
-               `━━━━━━━━━━━━━━━━━━━━\n` +
-               `📢 এই মেসেজটি ২ মিনিট পর ডিলিট হয়ে যাবে।`;
+        lastSignal = {
+            pair: pair,
+            signal: signalType,
+            power: "98% Sure Shot",
+            time: currentTime,
+            price: lastPrice
+        };
+
+        return lastSignal;
     } catch (error) {
-        return "❌ পেয়ারটি খুঁজে পাওয়া যায়নি! (উদা: EURUSD)";
+        return null;
     }
 }
 
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "EMon-BHai Bot অনলাইন! সিগন্যাল নিতে লিখুন: /signal EURUSD");
-});
-
+// --- ১. টেলিগ্রাম বটের অংশ ---
 bot.onText(/\/signal (.+)/, async (msg, match) => {
     const pair = match[1].toUpperCase();
-    const chatId = msg.chat.id;
+    const data = await generateSignal(pair);
     
-    const processingMsg = await bot.sendMessage(chatId, "🔍 মার্কেট এনালাইসিস করছি...");
-    
-    const result = await getSignal(pair);
-    const sentMsg = await bot.sendMessage(chatId, result, { parse_mode: 'Markdown' });
-
-    // ১ সেকেন্ড পর 'প্রসেসিং' মেসেজ ডিলিট হবে
-    autoDelete(chatId, processingMsg.message_id, 1);
-    
-    // ১২০ সেকেন্ড (২ মিনিট) পর সিগন্যাল মেসেজ ডিলিট হবে
-    autoDelete(chatId, sentMsg.message_id, 120); 
+    if (data) {
+        const message = `🔥 **EMon-BHai Web & Bot** 🔥\n` +
+                        `📊 Asset: ${data.pair}\n` +
+                        `👉 Signal: ${data.signal}\n` +
+                        `💪 Power: ${data.power}\n` +
+                        `⏰ Time: ${data.time}`;
+        
+        const sent = await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+        
+        // ২ মিনিট পর মেসেজ অটো ডিলিট
+        setTimeout(() => {
+            bot.deleteMessage(msg.chat.id, sent.message_id).catch(() => {});
+        }, 120000);
+    } else {
+        bot.sendMessage(msg.chat.id, "❌ Invalid Pair! Use: /signal EURUSD");
+    }
 });
 
-app.get('/', (req, res) => res.send('EMon-BHai Bot is Active!'));
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// --- ২. ওয়েবসাইটের অংশ (Frontend) ---
+app.get('/', (req, res) => {
+    res.send(`
+        <html>
+            <head>
+                <title>EMon-BHai Live Signals</title>
+                <style>
+                    body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 50px; }
+                    .box { background: #333; padding: 20px; border-radius: 15px; display: inline-block; border: 2px solid #00ff00; }
+                    h1 { color: #00ff00; }
+                    .signal { font-size: 24px; font-weight: bold; margin: 10px 0; }
+                </style>
+                <script>
+                    setTimeout(() => { location.reload(); }, 30000); // প্রতি ৩০ সেকেন্ডে অটো রিফ্রেশ
+                </script>
+            </head>
+            <body>
+                <h1>🔥 EMon-BHai Live Web Signal 🔥</h1>
+                <div class="box">
+                    <p>Last Asset: <b>${lastSignal.pair}</b></p>
+                    <p class="signal">Signal: ${lastSignal.signal}</p>
+                    <p>Accuracy: ${lastSignal.power}</p>
+                    <p>Last Updated: ${lastSignal.time}</p>
+                </div>
+                <p>টেলিগ্রামে সিগন্যাল পেতে বট ব্যবহার করুন।</p>
+            </body>
+        </html>
+    `);
+});
+
+app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
