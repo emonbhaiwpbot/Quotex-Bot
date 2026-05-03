@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const app = express();
@@ -16,16 +17,37 @@ if (process.env.BOT_TOKEN) {
 
 // ===== MARKET LIST =====
 const markets = [
+
+    // Forex
     { name: "EURUSD", type: "forex", symbol: "EURUSD=X" },
     { name: "GBPUSD", type: "forex", symbol: "GBPUSD=X" },
     { name: "USDJPY", type: "forex", symbol: "USDJPY=X" },
+    { name: "AUDUSD", type: "forex", symbol: "AUDUSD=X" },
+    { name: "USDCAD", type: "forex", symbol: "USDCAD=X" },
 
+    // Crypto
     { name: "BTCUSDT", type: "crypto", symbol: "BTCUSDT" },
     { name: "ETHUSDT", type: "crypto", symbol: "ETHUSDT" },
 
+    // Stocks
     { name: "AAPL", type: "stock", symbol: "AAPL" },
+    { name: "TSLA", type: "stock", symbol: "TSLA" },
 
-    { name: "EURUSD OTC", type: "otc", symbol: "OTC" }
+    // 🔥 MASSIVE OTC
+    { name: "EURUSD OTC", type: "otc" },
+    { name: "GBPUSD OTC", type: "otc" },
+    { name: "USDJPY OTC", type: "otc" },
+    { name: "AUDUSD OTC", type: "otc" },
+    { name: "USDCAD OTC", type: "otc" },
+    { name: "EURGBP OTC", type: "otc" },
+    { name: "EURJPY OTC", type: "otc" },
+    { name: "GBPJPY OTC", type: "otc" },
+    { name: "NZDUSD OTC", type: "otc" },
+    { name: "USDCHF OTC", type: "otc" },
+    { name: "BTCUSD OTC", type: "otc" },
+    { name: "ETHUSD OTC", type: "otc" },
+    { name: "Gold OTC", type: "otc" },
+    { name: "Silver OTC", type: "otc" }
 ];
 
 // ===== INDICATORS =====
@@ -51,10 +73,10 @@ function RSI(prices, period = 14) {
     return 100 - (100 / (1 + rs));
 }
 
-// ===== FETCH PRICE =====
+// ===== PRICE FETCH =====
 async function getPrices(market) {
 
-    // Yahoo (forex + stock)
+    // Forex + Stock (Yahoo)
     if (market.type === "forex" || market.type === "stock") {
         try {
             const res = await axios.get(
@@ -64,7 +86,7 @@ async function getPrices(market) {
         } catch {}
     }
 
-    // Binance (crypto)
+    // Crypto (Binance)
     if (market.type === "crypto") {
         try {
             const res = await axios.get(
@@ -74,25 +96,44 @@ async function getPrices(market) {
         } catch {}
     }
 
-    // OTC fake
+    // OTC (simulated)
     if (market.type === "otc") {
         let base = 1 + Math.random() * 0.01;
-        return Array.from({ length: 30 }, (_, i) => base + Math.sin(i) * 0.001);
+        let data = [];
+
+        for (let i = 0; i < 40; i++) {
+            base += (Math.random() - 0.5) * 0.002;
+            data.push(base);
+        }
+
+        return data;
     }
 
     return null;
 }
 
-// ===== SIGNAL =====
-function generateSignal(prices) {
+// ===== SIGNAL GENERATOR =====
+function generateSignalData(prices) {
     const ema = EMA(prices);
     const rsi = RSI(prices);
     const last = prices[prices.length - 1];
 
-    if (last > ema && rsi > 50 && rsi < 70) return "🚀 CALL";
-    if (last < ema && rsi < 50 && rsi > 30) return "📉 PUT";
+    let signal = "WAIT";
+    let power = "50%";
 
-    return "WAIT";
+    if (last > ema && rsi > 50 && rsi < 70) {
+        signal = "🚀 CALL";
+        power = Math.floor(80 + Math.random() * 15) + "%";
+    } 
+    else if (last < ema && rsi < 50 && rsi > 30) {
+        signal = "📉 PUT";
+        power = Math.floor(80 + Math.random() * 15) + "%";
+    } 
+    else {
+        power = Math.floor(50 + Math.random() * 20) + "%";
+    }
+
+    return { signal, power };
 }
 
 // ===== ROUTES =====
@@ -109,16 +150,21 @@ app.get('/signal/:pair', async (req, res) => {
     const prices = await getPrices(market);
     if (!prices) return res.json({ error: "No data" });
 
-    const signal = generateSignal(prices);
+    const data = generateSignalData(prices);
+
+    // Telegram send
+    if (bot && data.signal !== "WAIT") {
+        bot.sendMessage(process.env.CHAT_ID, `${pair} → ${data.signal} (${data.power})`);
+    }
 
     res.json({
         pair,
-        signal,
-        power: Math.floor(Math.random() * 20 + 80) + "%"
+        signal: data.signal,
+        power: data.power
     });
 });
 
 // ===== START =====
 app.listen(PORT, () => {
-    console.log("🚀 Server running on " + PORT);
+    console.log("🚀 EMon-BHai FINAL SERVER RUNNING ON " + PORT);
 });
